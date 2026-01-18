@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bodyweight Fitness App</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="container" id="main-screen">
+  <h1>🔥 Bodyweight Fitness</h1>
+  
+  <label for="gewicht">Gewicht (kg)</label>
+  <input type="number" id="gewicht" min="20" max="200">
+
+  <label for="groesse">Größe (cm)</label>
+  <input type="number" id="groesse" min="100" max="250">
+
+  <label for="alter">Alter</label>
+  <input type="number" id="alter" min="10" max="100">
+
+  <label for="geschlecht">Geschlecht</label>
+  <select id="geschlecht">
+    <option value="mann">Mann</option>
+    <option value="frau">Frau</option>
+  </select>
+
+  <label for="aktivitaet">Aktivität</label>
+  <select id="aktivitaet">
+    <option value="1.2">Wenig aktiv</option>
+    <option value="1.375">Leicht aktiv</option>
+    <option value="1.55">Moderat aktiv</option>
+    <option value="1.725">Sehr aktiv</option>
+    <option value="1.9">Extrem aktiv</option>
+  </select>
+
+  <label for="level">Level</label>
+  <select id="level">
+    <option value="anfänger">Anfänger</option>
+    <option value="fortgeschritten">Fortgeschritten</option>
+    <option value="profi">Profi</option>
+  </select>
+
+  <button onclick="showTipps()">Tipps anzeigen</button>
+  <button onclick="showExerciseOverview()">Übungsübersicht</button>
+  <button onclick="startSimpleTraining()">Einfaches Training starten</button>
+
+  <h2 id="kalorien-anzeige"></h2>
+</div>
+
+<!-- Übungsübersicht -->
+<div class="container" id="overview-screen" style="display:none;">
+  <h2>📋 Übungsübersicht</h2>
+  <ul id="exercise-list" style="text-align:left;"></ul>
+  <button onclick="startTraining()">Training starten</button>
+  <button onclick="backToMainFromOverview()">Zurück</button>
+</div>
+
+<div class="container" id="tipps">
+  <h2>💡 Ernährungstipps zum Abnehmen</h2>
+  <ul style="text-align:left;">
+    <li>Viel Gemüse & Eiweiß essen</li>
+    <li>Wasser trinken (mind. 2L/Tag)</li>
+    <li>Snacks reduzieren</li>
+    <li>Kleine Portionen, öfter essen</li>
+    <li>Regelmäßig schlafen</li>
+  </ul>
+  <button onclick="backToMain()">Zurück</button>
+</div>
+
+<div class="container" id="training">
+  <h2>🏋️ Training</h2>
+  <div id="exercise">Bereit?</div>
+  <div id="timer">40</div>
+  <div id="round">Runde 1</div>
+  <button onclick="pauseWorkout()">Pause</button>
+  <button onclick="resetWorkout()">Reset</button>
+  <button onclick="backToMainFromTraining()">Zurück</button>
+</div>
+
+<script src="script.js"></script>
+<script>
+// Globale Variablen
+let exercises=[], currentExercise=0, round=1, totalRounds=3;
+let workTime=40, restTime=20, timeLeft=workTime, isRest=false, interval=null;
+
+// Kalorienberechnung
+function berechneKalorien(){
+  const gewicht = parseFloat(document.getElementById("gewicht").value);
+  const groesse = parseFloat(document.getElementById("groesse").value);
+  const alter = parseFloat(document.getElementById("alter").value);
+  const geschlecht = document.getElementById("geschlecht").value;
+  const aktivitaet = parseFloat(document.getElementById("aktivitaet").value);
+
+  if(!gewicht || !groesse || !alter) return;
+
+  let bmr = 0;
+  if(geschlecht==="mann"){
+    bmr = 10*gewicht + 6.25*groesse - 5*alter + 5;
+  } else {
+    bmr = 10*gewicht + 6.25*groesse - 5*alter - 161;
+  }
+
+  const tdee = bmr * aktivitaet;
+  const kalorienAbnehmen = Math.round(tdee - 500);
+
+  document.getElementById("kalorien-anzeige").textContent =
+    `Tägliche Kalorien zum Abnehmen: ${kalorienAbnehmen} kcal`;
+}
+
+// Eventlistener für Kalorienanzeige
+["gewicht","groesse","alter","geschlecht","aktivitaet"].forEach(id=>{
+  document.getElementById(id).addEventListener("input",berechneKalorien);
+});
+
+// Level-Logik
+function setLevel(level){
+  if(level==="anfänger"){
+    exercises=["Kniebeugen","Liegestütze","Plank"];
+    workTime=40; restTime=20; totalRounds=3;
+  } else if(level==="fortgeschritten"){
+    exercises=["Kniebeugen","Liegestütze","Ausfallschritte","Plank","Mountain Climbers"];
+    workTime=45; restTime=15; totalRounds=4;
+  } else if(level==="profi"){
+    exercises=["Burpees","Liegestütze","Ausfallschritte","Plank","Mountain Climbers","Jump Squats"];
+    workTime=50; restTime=10; totalRounds=5;
+  }
+}
+
+// Übungsübersicht anzeigen
+function showExerciseOverview(){
+  const level = document.getElementById("level").value;
+  setLevel(level);
+  const list = document.getElementById("exercise-list");
+  list.innerHTML = "";
+  exercises.forEach(ex => {
+    const li = document.createElement("li");
+    li.textContent = ex;
+    list.appendChild(li);
+  });
+  document.getElementById("main-screen").style.display="none";
+  document.getElementById("overview-screen").style.display="block";
+}
+
+function backToMainFromOverview(){
+  document.getElementById("overview-screen").style.display="none";
+  document.getElementById("main-screen").style.display="block";
+}
+
+// Training starten
+function startTraining(){
+  saveProfile();
+  const level = document.getElementById("level").value;
+  setLevel(level);
+
+  // Tagessteigerung
+  let lastRound = parseInt(localStorage.getItem("lastRound_"+level)||totalRounds);
+  totalRounds = lastRound;
+  localStorage.setItem("lastRound_"+level, lastRound+1);
+  alert(`Level: ${level}\nHeute: ${lastRound} Runden\nMorgen: ${lastRound+1} Runden`);
+
+  document.getElementById("overview-screen").style.display="none";
+  document.getElementById("main-screen").style.display="none";
+  document.getElementById("training").style.display="block";
+  startWorkout();
+}
+
+function startSimpleTraining(){
+  const level = document.getElementById("level").value;
+  setLevel(level);
+  document.getElementById("main-screen").style.display="none";
+  document.getElementById("training").style.display="block";
+  startWorkout();
+}
+
+// Training Timer
+const timerEl=document.getElementById("timer");
+const exerciseEl=document.getElementById("exercise");
+const roundEl=document.getElementById("round");
+const beep = new Audio("https://actions.google.com/sounds/v1/alarms/beep_short.ogg");
+
+function updateUI() {
+  timerEl.textContent = timeLeft;
+  roundEl.textContent = `Runde ${round} von ${totalRounds}`;
+}
+
+function startWorkout(){
+  exerciseEl.textContent = exercises[currentExercise];
+  updateUI();
+  interval=setInterval(()=>{
+    timeLeft--;
+    if(timeLeft<=0){
+      if(!isRest){
+        isRest=true;
+        timeLeft=restTime;
+        exerciseEl.textContent="Pause";
+        beep.play();
+        if(navigator.vibrate) navigator.vibrate(500);
+      } else {
+        isRest=false;
+        currentExercise++;
+        if(currentExercise>=exercises.length){
+          currentExercise=0;
+          round++;
+          if(round>totalRounds){
+            clearInterval(interval);
+            exerciseEl.textContent="Training geschafft 🎉";
+            timerEl.textContent="";
+            beep.play();
+            if(navigator.vibrate) navigator.vibrate([300,200,300]);
+            return;
+          }
+        }
+        timeLeft=workTime;
+        exerciseEl.textContent=exercises[currentExercise];
+        beep.play();
+        if(navigator.vibrate) navigator.vibrate(500);
+      }
+    }
+    updateUI();
+  },1000);
+}
+
+function pauseWorkout(){clearInterval(interval); interval=null;}
+function resetWorkout(){
+  pauseWorkout();
+  currentExercise=0;
+  round=1;
+  timeLeft=workTime;
+  isRest=false;
+  exerciseEl.textContent="Bereit?";
+  updateUI();
+}
+
+// Navigation
+function showTipps(){
+  document.getElementById("main-screen").style.display="none";
+  document.getElementById("tipps").style.display="block";
+}
+function backToMain(){
+  document.getElementById("tipps").style.display="none";
+  document.getElementById("main-screen").style.display="block";
+}
+function backToMainFromTraining(){
+  resetWorkout();
+  document.getElementById("training").style.display="none";
+  document.getElementById("main-screen").style.display="block";
+}
+
+// Profil speichern
+function saveProfile(){
+  const gewicht=document.getElementById("gewicht").value;
+  const groesse=document.getElementById("groesse").value;
+  const alter=document.getElementById("alter").value;
+  const level=document.getElementById("level").value;
+  const geschlecht=document.getElementById("geschlecht").value;
+  const aktivitaet=document.getElementById("aktivitaet").value;
+  if(gewicht && groesse && alter){
+    localStorage.setItem("gewicht",gewicht);
+    localStorage.setItem("groesse",groesse);
+    localStorage.setItem("alter",alter);
+    localStorage.setItem("level",level);
+    localStorage.setItem("geschlecht",geschlecht);
+    localStorage.setItem("aktivitaet",aktivitaet);
+  }
+}
+
+// Werte beim Laden aus Speicher
+window.onload=function(){
+  ["gewicht","groesse","alter","level","geschlecht","aktivitaet"].forEach(id=>{
+    if(localStorage.getItem(id)) document.getElementById(id).value=localStorage.getItem(id);
+  });
+  berechneKalorien();
+};
+</script>
+</body>
+</html>
